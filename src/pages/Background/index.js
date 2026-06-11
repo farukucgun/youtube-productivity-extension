@@ -50,8 +50,7 @@ chrome.commands.onCommand.addListener((command) => {
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    const { type, videoId, value, description } = request;
-    console.log('Message received:', request);
+    const { type, videoId, value, label, tags, note } = request;
 
     if (type === 'GET_BOOKMARKS') {
         chrome.storage.sync.get([videoId], (data) => {
@@ -71,7 +70,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
             });
             sendResponse(allBookmarks);
-            console.log('All bookmarks:', allBookmarks);
         });
 
         return true;
@@ -91,7 +89,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const bookmarks = data[videoId] ? JSON.parse(data[videoId]) : [];
             const newBookmark = {
                 time: parseFloat(value.toFixed(2)),
-                description: 'Bookmark at: '
+                label: label || '',
+                tags: tags || [],
+                note: note || '',
+                createdAt: new Date().toISOString()
             };
 
             if (bookmarks.some((b) => b.time === newBookmark.time)) {
@@ -158,7 +159,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.sync.get([videoId], (data) => {
             const bookmarks = data[videoId] ? JSON.parse(data[videoId]) : [];
             const updatedBookmarks = bookmarks.map(bookmark =>
-                bookmark.time === value ? { ...bookmark, description: description } : bookmark
+                bookmark.time === value ? {
+                    ...bookmark,
+                    label: request.label || bookmark.label,
+                    tags: request.tags || bookmark.tags,
+                    note: request.note || bookmark.note
+                } : bookmark
             );
             chrome.storage.sync.set({ [videoId]: JSON.stringify(updatedBookmarks) });
         });
@@ -173,6 +179,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const enableNewTabPage = data.newTabOption || false;
             sendResponse(enableNewTabPage);
         });
+        return true;
+    }
+
+    else if (type === 'VIDEO_METADATA') {
+        const { videoId, title } = request;
+
+        if (!title || title === 'YouTube') return;
+
+        chrome.storage.sync.get(`video_title_${videoId}`, (data) => {
+            const key = `video_title_${videoId}`;
+            if (data[key]) return;
+
+            chrome.storage.sync.set({ [key]: title });
+        });
+    }
+
+
+    else if (type === 'SYNC_TO_NOTION') {
+        const titleKey = `video_title_${videoId}`;
+
+        chrome.storage.sync.get(
+            [videoId, titleKey, 'NOTION_PAGE_ID', 'NOTION_TOKEN'],
+            async (data) => {
+                const bookmarks = data[videoId]
+                    ? JSON.parse(data[videoId])
+                    : [];
+
+                const token = data.NOTION_TOKEN;
+                const pageId = data.NOTION_PAGE_ID;
+
+                const videoTitle =
+                    typeof data[titleKey] === 'string' && data[titleKey].length
+                        ? data[titleKey]
+                        : `YouTube: ${videoId}`;
+
+                await removeVideoSection(pageId, videoTitle, token);
+
+                if (!bookmarks.length) return;
+
+                const children = [
+                    buildVideoHeader(videoId, videoTitle),
+                    ...bookmarks.map(b => buildBookmarkItem(videoId, b))
+                ];
+
+                await fetch(
+                    `https://api.notion.com/v1/blocks/${pageId}/children`,
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Notion-Version': '2022-06-28',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ children })
+                    }
+                );
+            }
+        );
+
         return true;
     }
 });
@@ -221,3 +286,95 @@ chrome.tabs.onCreated.addListener((tab) => {
 chrome.action.onClicked.addListener((tab) => {
     chrome.tabs.create({ url: newTabURL });
 });
+
+import secrets from 'secrets';
+
+const { NOTION_TOKEN, NOTION_PAGE_ID } = secrets;
+
+chrome.storage.sync.set({
+  NOTION_TOKEN: NOTION_TOKEN,
+  NOTION_PAGE_ID: NOTION_PAGE_ID
+});
+
+const formatTime = (seconds) =>
+  new Date(seconds * 1000).toISOString().substring(11, 19);
+
+async function getPageBlocks(pageId, token) {
+  const res = await fetch(
+    `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28'
+      }
+    }
+  );
+  return res.json();
+}
+
+async function deleteBlock(blockId, token) {
+  await fetch(`https://api.notion.com/v1/blocks/${blockId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': '2022-06-28'
+    }
+  });
+}
+
+async function removeVideoSection(pageId, videoTitle, token) {
+  const data = await getPageBlocks(pageId, token);
+  const blocks = data.results;
+
+  let deleting = false;
+  for (const block of blocks) {
+    if (
+      block.type === 'heading_2' &&
+      block.heading_2.rich_text[0]?.plain_text === videoTitle
+    ) {
+      deleting = true;
+      await deleteBlock(block.id, token);
+      continue;
+    }
+
+    if (deleting) {
+      if (block.type.startsWith('heading_')) break;
+      await deleteBlock(block.id, token);
+    }
+  }
+}
+
+function buildVideoHeader(videoId, title) {
+  return {
+    object: 'block',
+    type: 'heading_2',
+    heading_2: {
+      rich_text: [{
+        type: 'text',
+        text: {
+          content: title,
+          link: { url: `https://www.youtube.com/watch?v=${videoId}` }
+        }
+      }]
+    }
+  };
+}
+
+function buildBookmarkItem(videoId, b) {
+  return {
+    object: 'block',
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [{
+        type: 'text',
+        text: {
+          content: `${formatTime(b.time)} — ${b.label || 'Untitled'} — ${b.note || ''}`,
+          link: {
+            url: `https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(b.time)}`
+          }
+        }
+      }]
+    }
+  };
+}
+

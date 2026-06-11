@@ -13,7 +13,8 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "noEmit": false,
-    "jsx": "react"
+    "jsx": "react",
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src"],
   "exclude": ["build", "node_modules"]

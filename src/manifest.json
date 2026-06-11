@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
+  "version": "0.1.0",
   "name": "browser-shortcuts",
   "description": "A chrome extension to introduce browser shortcuts",
-  "host_permissions": ["https://*.youtube.com/*"],
+  "host_permissions": [
+    "https://*.youtube.com/*",
+    "https://sponsor.ajay.app/*",
+    "https://api.notion.com/*"
+  ],
   "options_page": "options.html",
   "background": { "service_worker": "background.bundle.js" },
   "action": {
@@ -27,19 +32,19 @@
     }
   ],
   "commands": {
-    "next-tab": {
-      "suggested_key": {
-        "default": "Ctrl+Right",
-        "mac": "MacCtrl+Right"
-      },
-      "description": "switch to the tab on the right"
-    },
     "previous-tab": {
       "suggested_key": {
-        "default": "Ctrl+Left",
-        "mac": "MacCtrl+Left"
+        "default": "Ctrl+Shift+Home",
+        "mac": "Command+Shift+Home"
       },
       "description": "switch to the tab on the left"
+    },
+    "next-tab": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+End",
+        "mac": "Command+Shift+End"
+      },
+      "description": "switch to the tab on the right"
     }
   },
   "permissions": [

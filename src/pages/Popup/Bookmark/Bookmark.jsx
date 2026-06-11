@@ -8,7 +8,9 @@ import '../Popup.css';
 const Bookmark = ({bookmark, onRemoveBookmark, onEditBookmark, onPlayBookmark, onShareBookmark}) => {
 
     const [isEditing, setIsEditing] = useState(false);
-    const [description, setDescription] = useState(bookmark.description);
+    const [label, setLabel] = useState(bookmark.label || '');
+    const [tags, setTags] = useState(bookmark.tags?.join(', ') || '');
+    const [note, setNote] = useState(bookmark.note || '');
 
     const handleRemoveBookmark = (e) => {
         e.stopPropagation();
@@ -27,7 +29,11 @@ const Bookmark = ({bookmark, onRemoveBookmark, onEditBookmark, onPlayBookmark, o
 
     const handleSaveEdit = () => {
         setIsEditing(false);
-        onEditBookmark(bookmark.time, description);
+        onEditBookmark(bookmark.time, {
+            label,
+            tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
+            note
+        });
     };
 
     const handleShareBookmark = (e) => {
@@ -43,40 +49,26 @@ const Bookmark = ({bookmark, onRemoveBookmark, onEditBookmark, onPlayBookmark, o
     };
 
     return (
-        <div
-            id={'bookmark-' + bookmark.time}
-            className='bookmark'
-        >
+        <div id={'bookmark-' + bookmark.time} className='bookmark'>
             {isEditing ? (
-                <input
-                    type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    onBlur={handleSaveEdit}
-                    autoFocus
-                />
+                <div className='edit_fields'>
+                    <input type="text" placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
+                    <input type="text" placeholder="Tags (comma-separated)" value={tags} onChange={(e) => setTags(e.target.value)} />
+                    <textarea placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} />
+                    <button onClick={handleSaveEdit}>Save</button>
+                </div>
             ) : (
-                <h3 className='bookmark_description' onClick={handleEditClick}>
-                    {bookmark.description}
-                </h3>
+                <div className='bookmark_content' onClick={() => setIsEditing(true)}>
+                    <h3 className='bookmark_label'>{bookmark.label || 'Untitled'}</h3>
+                    <h4 className='bookmark_tags'>{bookmark.tags?.join(', ')}</h4>
+                    <p className='bookmark_note'>{bookmark.note}</p>
+                    <h3 className='bookmark_time'>{getTime(bookmark.time)}</h3>
+                </div>
             )}
-            <h3 className='bookmark_time'>{getTime(bookmark.time)}</h3>
             <div className='control_elements'>
-                <img
-                    src={playImage}
-                    className='control_element'
-                    onClick={handlePlayBookmark}
-                />
-                <img
-                    src={deleteImage}
-                    className='control_element'
-                    onClick={handleRemoveBookmark}
-                />
-                <img
-                    src={shareImage}
-                    className='control_element'
-                    onClick={handleShareBookmark}
-                />
+                <img src={playImage} className='control_element' onClick={(e) => { e.stopPropagation(); onPlayBookmark(bookmark.time); }} />
+                <img src={deleteImage} className='control_element' onClick={(e) => { e.stopPropagation(); onRemoveBookmark(bookmark.time); }} />
+                <img src={shareImage} className='control_element' onClick={(e) => { e.stopPropagation(); onShareBookmark(bookmark.time); }} />
             </div>
         </div>
     );

@@ -17,10 +17,16 @@ const Popup = () => {
     const [bookmarks, setBookmarks] = useState([]);
     const [currentVideo, setCurrentVideo] = useState('');
     const [currentTab, setCurrentTab] = useState('');
+    const [toastMessage, setToastMessage] = useState("");
 
     useEffect(() => {
         updateBookmarks();
     }, []);
+
+    const showToast = (message) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(""), 2000);
+    };
 
     const updateBookmarks = async () => {
         chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
@@ -47,13 +53,18 @@ const Popup = () => {
         await chrome.runtime.sendMessage({ type: 'REMOVE_BOOKMARK', videoId: currentVideo, value: time });
     };
 
-    const handleEditBookmark = async (time, newDescription) => {
+    const handleEditBookmark = async (time, updatedFields) => {
         const updatedBookmarks = bookmarks.map(bookmark =>
-            bookmark.time === time ? { ...bookmark, description: newDescription } : bookmark
+            bookmark.time === time ? { ...bookmark, ...updatedFields } : bookmark
         );
         setBookmarks(updatedBookmarks);
 
-        await chrome.runtime.sendMessage({ type: 'EDIT_BOOKMARK', videoId: currentVideo, value: time, description: newDescription });
+        await chrome.runtime.sendMessage({
+            type: 'EDIT_BOOKMARK',
+            videoId: currentVideo,
+            value: time,
+            ...updatedFields
+        });
     };
 
     const handlePlayBookmark = async (time) => {
@@ -61,9 +72,10 @@ const Popup = () => {
     };
 
     const handleShareBookmark = async (time) => {
-        const shavedTime = Math.floor(time);
-        const url = `https://www.youtube.com/watch?v=${currentVideo}&t=${shavedTime}`;
+        const sharedTime = Math.floor(time);
+        const url = `https://www.youtube.com/watch?v=${currentVideo}&t=${sharedTime}`;
         await navigator.clipboard.writeText(url);
+        showToast("Link copied!");
     }
 
     const handleRemoveVideoBookmarks = async () => {
@@ -75,16 +87,24 @@ const Popup = () => {
         <div className="app">
             <div className='title_container'>
                 <h3 className='title'>Video Bookmarks</h3>
-                <img 
+                <div className='header_actions'>
+                    <img 
                     src={SettingsImage}
                     className='control_element'
                     onClick={() => chrome.runtime.openOptionsPage()}
-                />
-                <img
+                    />
+                    <img
                     src={DeleteImage}
                     className='control_element'
                     onClick={handleRemoveVideoBookmarks}
-                />
+                    />
+                    <button
+                    onClick={() => chrome.runtime.sendMessage({ type: 'SYNC_TO_NOTION', videoId: currentVideo })}
+                    >
+                    Sync to Notion
+                    </button>
+                </div>
+                
             </div>
             <div className='bookmarks'>
                 {bookmarks?.length === 0 && <h3 className='no_bookmarks'>No bookmarks yet</h3>}
@@ -99,6 +119,7 @@ const Popup = () => {
                     />
                 ))}
             </div>
+            {toastMessage && <div className={`toast show`}>{toastMessage}</div>}
         </div>
     );
 };

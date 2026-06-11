@@ -26,7 +26,6 @@ const Options: React.FC<Props> = ({ title }: Props) => {
         });
 
         chrome.runtime.sendMessage({ type: 'GET_ALL_BOOKMARKS' }, (response) => {
-            console.log(response);
             setBookmarks(response);
         });
     }, []);
