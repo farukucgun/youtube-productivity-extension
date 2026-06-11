@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "version": "0.1.0",
-  "name": "browser-shortcuts",
+  "name": "YouTube Knowledge & Productivity Extension",
   "description": "A chrome extension to introduce browser shortcuts",
   "host_permissions": [
     "https://*.youtube.com/*",
